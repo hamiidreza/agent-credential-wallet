@@ -1,0 +1,18 @@
+# Build output.
+/target/
+
+# Editor and OS noise.
+*.swp
+.DS_Store
+.idea/
+.vscode/
+
+# Key material and credentials must never be committed. The demo generates
+# these locally; nothing real should ever live in the repo.
+*.pem
+*.jwk
+/keys/
+/softhsm-tokens/
+
+# NOTE: Cargo.lock is deliberately NOT ignored. This workspace produces
+# binaries, and committing the lockfile is what makes the demo reproducible.
