@@ -76,4 +76,4 @@ authorized. Unlinkability is future work, not a gap that was overlooked.
 
 ## Licence
 
-MIT OR Apache-2.0.
+MIT
