@@ -4,3 +4,6 @@
 //! useful and publishable on its own; keep it that way.
 //!
 //! [RFC 9901]: https://www.rfc-editor.org/rfc/rfc9901.html
+
+
+pub mod error;
