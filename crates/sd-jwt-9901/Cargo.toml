@@ -11,8 +11,3 @@ base64     = { workspace = true }
 serde      = { workspace = true }
 serde_json = { workspace = true }
 thiserror  = { workspace = true }
-
-ed25519-dalek = { version = "2", features = ["rand_core"] }
-
-[dev-dependencies]
-rand = "0.8"
