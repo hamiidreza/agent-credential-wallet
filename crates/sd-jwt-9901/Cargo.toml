@@ -11,6 +11,8 @@ base64     = { workspace = true }
 serde      = { workspace = true }
 serde_json = { workspace = true }
 thiserror  = { workspace = true }
+ml-dsa     = { workspace = true }
+getrandom  = { workspace = true }
 
 [lints]
 workspace = true
