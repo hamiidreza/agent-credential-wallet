@@ -1,7 +1,7 @@
 [package]
 name = "sd-jwt-9901"
 version.workspace = true
-edition = "2021"
+edition.workspace = true
 description = "An implementation of RFC 9901, Selective Disclosure for JSON Web Tokens"
 license.workspace = true
 repository.workspace = true
@@ -11,3 +11,6 @@ base64     = { workspace = true }
 serde      = { workspace = true }
 serde_json = { workspace = true }
 thiserror  = { workspace = true }
+
+[lints]
+workspace = true
