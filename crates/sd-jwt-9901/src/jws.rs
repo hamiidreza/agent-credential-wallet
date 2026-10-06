@@ -11,7 +11,6 @@ use serde_json::{Map, Value};
 
 use crate::error::Error;
 
-
 /// A JOSE signature algorithm supported by this crate.
 ///
 /// Names are the ones registered for JOSE by `draft-ietf-cose-dilithium`.
@@ -44,14 +43,20 @@ impl Algorithm {
 
 // Signing/verification traits
 pub trait Signer {
+    /// Return the algorithm that this signer implements.
+    fn algorithm(&self) -> Algorithm;
+
     /// Sign `message` and return the raw signature bytes.
     ///
     /// `message` is the ASCII bytes of `base64url(header).base64url(payload)`,
-    /// exactly as specified in RFC 7515, section 4.
+    /// exactly as specified in RFC 7515, section 5.1.
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, Error>;
 }
 
 pub trait Verifier {
+    /// Return the algorithm that this verifier implements.
+    fn algorithm(&self) -> Algorithm;
+
     /// Verify that `signature` is a valid signature over `message`.
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), Error>;
 }
