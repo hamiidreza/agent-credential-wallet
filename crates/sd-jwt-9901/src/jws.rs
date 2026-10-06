@@ -1,7 +1,46 @@
+//! Compact JWS signing and verification ([RFC 7515]).
+//!
+//! The algorithm is never taken on trust from a token: the verifier says which
+//! algorithm it expects, and a token naming any other is rejected before its
+//! signature is looked at.
+//!
+//! [RFC 7515]: https://www.rfc-editor.org/rfc/rfc7515.html
+
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 use crate::error::Error;
+
+
+/// A JOSE signature algorithm supported by this crate.
+///
+/// Names are the ones registered for JOSE by `draft-ietf-cose-dilithium`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Algorithm {
+    /// ML-DSA-44 (FIPS 204).
+    MlDsa44,
+    /// ML-DSA-65 (FIPS 204).
+    MlDsa65,
+}
+
+impl Algorithm {
+    /// Return the JOSE name of this algorithm.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Algorithm::MlDsa44 => "ML-DSA-44",
+            Algorithm::MlDsa65 => "ML-DSA-65",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "ML-DSA-44" => Some(Self::MlDsa44),
+            "ML-DSA-65" => Some(Self::MlDsa65),
+            _ => None,
+        }
+    }
+}
 
 // Signing/verification traits
 pub trait Signer {
