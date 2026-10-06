@@ -62,65 +62,93 @@ pub trait Verifier {
 }
 
 #[derive(Debug, Clone)]
-pub struct CompactJws {
-    /// Parsed header (always a JSON object).
-    pub header: Value,
-    /// Raw payload bytes (not base64-decoded further; callers parse as needed).
+pub struct VerifiedJws {
+    pub header: Map<String, Value>,
     pub payload: Vec<u8>,
-    /// Raw signature bytes.
-    pub signature: Vec<u8>,
 }
 
-impl CompactJws {
-    /// Sign `payload` with `signer` and return the compact serialisation.
-    ///
-    /// `alg` is the JOSE algorithm identifier that goes into the JWS header
-    /// (e.g. `"MLDSA44"`). The caller supplies it because the header must be
-    /// committed to before signing, and the signer trait does not carry it.
-    pub fn sign(payload: &[u8], alg: &str, signer: &dyn Signer) -> Result<String, Error> {
-        let header_json = format!(r#"{{"alg":"{}","typ":"JWT"}}"#, alg);
-        let header_b64 = URL_SAFE_NO_PAD.encode(header_json.as_bytes());
-        let payload_b64 = URL_SAFE_NO_PAD.encode(payload);
-
-        // RFC 7515 §4: signing input is ASCII(base64url(header) || '.' || base64url(payload))
-        let signing_input = format!("{}.{}", header_b64, payload_b64);
-        let signature = signer.sign(signing_input.as_bytes())?;
-        let sig_b64 = URL_SAFE_NO_PAD.encode(&signature);
-
-        Ok(format!("{}.{}", signing_input, sig_b64))
+impl VerifiedJws {
+    /// The protected header.
+    pub fn header(&self) -> &Map<String, Value> {
+        &self.header
     }
 
-    /// Parse and verify a compact JWS token.
-    ///
-    /// Returns the decoded [`CompactJws`] if the signature is valid.
-    pub fn verify(token: &str, verifier: &dyn Verifier) -> Result<Self, Error> {
-        let parts: Vec<&str> = token.splitn(3, '.').collect();
-        if parts.len() != 3 {
-            return Err(Error::MalformedToken("expected three dot-separated parts"));
-        }
-        let (header_b64, payload_b64, sig_b64) = (parts[0], parts[1], parts[2]);
-
-        let signing_input = format!("{}.{}", header_b64, payload_b64);
-
-        let header_bytes = URL_SAFE_NO_PAD
-            .decode(header_b64)
-            .map_err(|_| Error::MalformedToken("invalid base64url in header"))?;
-        let payload = URL_SAFE_NO_PAD
-            .decode(payload_b64)
-            .map_err(|_| Error::MalformedToken("invalid base64url in payload"))?;
-        let signature = URL_SAFE_NO_PAD
-            .decode(sig_b64)
-            .map_err(|_| Error::MalformedToken("invalid base64url in signature"))?;
-
-        let header: Value = serde_json::from_slice(&header_bytes)
-            .map_err(|_| Error::MalformedToken("header is not valid JSON"))?;
-
-        verifier.verify(signing_input.as_bytes(), &signature)?;
-
-        Ok(Self {
-            header,
-            payload,
-            signature,
-        })
+    /// The decoded payload bytes.
+    pub fn payload(&self) -> &[u8] {
+        &self.payload
     }
+}
+
+/// Sign `payload` and return the compact serialisation.
+///
+/// `alg` is always set from `signer`, so it cannot disagree with the key;
+/// any `alg` in `header` is replaced. The caller supplies everything else,
+/// such as `typ` (`dc+sd-jwt`, `kb+jwt`, ...) and `kid`.
+pub fn sign(
+    header: Map<String, Value>,
+    payload: &[u8],
+    signer: &dyn Signer,
+) -> Result<String, Error> {
+    let mut full = Map::new();
+    full.insert("alg".into(), signer.algorithm().as_str().into());
+    full.extend(header.into_iter().filter(|(name, _)| name != "alg"));
+
+    let header_json = serde_json::to_vec(&full)
+        .map_err(|_| Error::SigningFailed("header is not serialisable".into()))?;
+
+    let signing_input = format!(
+        "{}.{}",
+        URL_SAFE_NO_PAD.encode(header_json),
+        URL_SAFE_NO_PAD.encode(payload)
+    );
+    let signature = signer.sign(signing_input.as_bytes())?;
+
+    Ok(format!(
+        "{signing_input}.{}",
+        URL_SAFE_NO_PAD.encode(signature)
+    ))
+}
+
+/// Parse a compact JWS token and verify its signature with `verifier`.
+///
+/// Rejects the token if its `alg` is not the verifier's algorithm, or if it
+/// uses `crit`, before the signature is checked.
+pub fn verify(token: &str, verifier: &dyn Verifier) -> Result<VerifiedJws, Error> {
+    let mut parts = token.split('.');
+
+    let (Some(header_b64), Some(payload_b64), Some(signature_b64), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return Err(Error::MalformedToken("expected three dot-separated parts"));
+    };
+
+    let header_bytes = URL_SAFE_NO_PAD
+        .decode(header_b64)
+        .map_err(|_| Error::MalformedToken("invalid base64url in header"))?;
+    let Ok(Value::Object(header)) = serde_json::from_slice(&header_bytes) else {
+        return Err(Error::MalformedToken("header is not a JSON object"));
+    };
+
+    match header.get("alg").and_then(Value::as_str) {
+        Some(alg) if alg == verifier.algorithm().as_str() => {}
+        Some(alg) => return Err(Error::UnexpectedAlgorithm(alg.to_string())),
+        None => return Err(Error::MalformedToken("header has no alg")),
+    }
+    // RFC 7515 section 4.1.11: we understand no extensions, so a token
+    // that marks any as critical must be rejected.
+    if header.contains_key("crit") {
+        return Err(Error::UnsupportedHeader("crit"));
+    }
+
+    let payload = URL_SAFE_NO_PAD
+        .decode(payload_b64)
+        .map_err(|_| Error::MalformedToken("invalid base64url in payload"))?;
+    let signature = URL_SAFE_NO_PAD
+        .decode(signature_b64)
+        .map_err(|_| Error::MalformedToken("invalid base64url in signature"))?;
+
+    let signing_input_len = header_b64.len() + 1 + payload_b64.len();
+    verifier.verify(&token.as_bytes()[..signing_input_len], &signature)?;
+
+    Ok(VerifiedJws { header, payload })
 }
