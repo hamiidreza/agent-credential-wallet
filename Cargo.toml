@@ -16,6 +16,9 @@ sha2 = "0.11"
 thiserror = "2.0"
 ml-dsa = { version = "0.1.1", features = ["zeroize"] }
 getrandom = { version = "0.4", features = ["sys_rng"] }
+rmcp = { version = "3.5", features = ["transport-io"] }
+schemars = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std"] }
 
 [workspace.dependencies.zeroize]
 version = "=1.7.0"
