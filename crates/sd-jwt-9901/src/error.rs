@@ -29,4 +29,8 @@ pub enum Error {
     /// A disclosure is malformed.
     #[error("invalid disclosure: {0}")]
     InvalidDisclosure(&'static str),
+
+    /// An SD-JWT is malformed, or breaks one of the RFC 9901 processing rules.
+    #[error("invalid SD-JWT: {0}")]
+    InvalidSdJwt(&'static str),
 }

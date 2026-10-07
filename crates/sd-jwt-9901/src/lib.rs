@@ -5,7 +5,8 @@
 //!
 //! [RFC 9901]: https://www.rfc-editor.org/rfc/rfc9901.html
 
+pub mod disclosure;
 pub mod error;
 pub mod jws;
 pub mod mldsa;
-pub mod disclosure;
+pub mod sd_jwt;
