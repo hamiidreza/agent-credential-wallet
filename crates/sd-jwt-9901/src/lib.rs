@@ -8,3 +8,4 @@
 pub mod error;
 pub mod jws;
 pub mod mldsa;
+pub mod disclosure;

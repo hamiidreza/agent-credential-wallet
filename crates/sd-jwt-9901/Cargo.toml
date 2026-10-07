@@ -13,6 +13,8 @@ serde_json = { workspace = true }
 thiserror  = { workspace = true }
 ml-dsa     = { workspace = true }
 getrandom  = { workspace = true }
+sha2       = { workspace = true }
+
 
 [lints]
 workspace = true
