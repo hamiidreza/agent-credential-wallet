@@ -59,8 +59,14 @@ impl Disclosure {
 
     /// The digest that `_sd` or `...` uses to refer to this Disclosure.
     pub fn digest(&self) -> String {
-        URL_SAFE_NO_PAD.encode(Sha256::digest(self.encoded.as_bytes()))
+        sha256_b64(self.encoded.as_bytes())
     }
+}
+
+/// SHA-256, base64url-encoded: the `_sd_alg` hash, used for Disclosure digests
+/// and for `sd_hash` in the Key Binding JWT.
+pub(crate) fn sha256_b64(input: &[u8]) -> String {
+    URL_SAFE_NO_PAD.encode(Sha256::digest(input))
 }
 
 /// 128 random bits, base64url-encoded.

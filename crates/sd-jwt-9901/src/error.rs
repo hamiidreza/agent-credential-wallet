@@ -33,4 +33,8 @@ pub enum Error {
     /// An SD-JWT is malformed, or breaks one of the RFC 9901 processing rules.
     #[error("invalid SD-JWT: {0}")]
     InvalidSdJwt(&'static str),
+
+    /// A Key Binding JWT is missing, or does not match the presentation it came with.
+    #[error("invalid key binding: {0}")]
+    InvalidKeyBinding(&'static str),
 }
