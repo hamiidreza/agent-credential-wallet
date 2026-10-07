@@ -405,7 +405,7 @@ mod tests {
         assert_eq!(invalid(result), "the same Disclosure was sent twice");
 
         let result = SdJwt::verify(&format!("{sd_jwt}kb.jwt.here"), TYP, &key);
-        assert!(matches!(result, Err(Error::InvalidKeyBinding(_))));    
+        assert!(matches!(result, Err(Error::InvalidKeyBinding(_))));
     }
 
     // The rest test the processing rules alone, so they call `disclose` on
