@@ -1,9 +1,9 @@
-//! SD-JWT (RFC 9901): issuing, presenting and verifying, without key binding.
+//! SD-JWT (RFC 9901): issuing, presenting and verifying.
 //!
 //! An SD-JWT is `<issuer-signed JWT>~<Disclosure>~...~<Disclosure>~<KB-JWT or empty>`.
 //! The issuer's signature covers the `_sd` digests, and the digests cover the
-//! Disclosures. [`SdJwt::verify`] checks the signature with [`jws::verify`],
-//! then [`disclose`] checks the Disclosures against the digests.
+//! Disclosures. A presentation ends in a Key Binding JWT, signed by the holder,
+//! which covers everything before it (see `kb_jwt.rs`).
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;
