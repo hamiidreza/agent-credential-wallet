@@ -25,4 +25,8 @@ pub enum Error {
     /// A signer implementation returned an error.
     #[error("signing failed: {0}")]
     SigningFailed(String),
+
+    /// A disclosure is malformed.
+    #[error("invalid disclosure: {0}")]
+    InvalidDisclosure(&'static str),
 }

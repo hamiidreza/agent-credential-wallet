@@ -5,10 +5,11 @@
 //! parsed Disclosure keeps its string and is never re-encoded. The hash is
 //! always SHA-256, the `_sd_alg` default.
 
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use base64::Engine as _;
-use serde_json::{json, Value};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use serde_json::{Value, json};
 use sha2::{Digest as _, Sha256};
+
+use crate::error::Error;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Disclosure {
@@ -33,18 +34,20 @@ impl Disclosure {
         }
     }
 
-    pub fn parse(encoded: &str) -> Result<Self, &'static str> {
+    pub fn parse(encoded: &str) -> Result<Self, Error> {
+        let invalid = Error::InvalidDisclosure;
         let bytes = URL_SAFE_NO_PAD
             .decode(encoded)
-            .map_err(|_| "not base64url")?;
-        let array: Vec<Value> = serde_json::from_slice(&bytes).map_err(|_| "not a JSON array")?;
+            .map_err(|_| invalid("not base64url"))?;
+        let array: Vec<Value> =
+            serde_json::from_slice(&bytes).map_err(|_| invalid("not a JSON array"))?;
         let (salt, name, value) = match array.as_slice() {
             [Value::String(salt), value] => (salt, None, value),
             [Value::String(salt), Value::String(name), value] => (salt, Some(name), value),
-            _ => return Err("not [salt, value] or [salt, name, value]"),
+            _ => return Err(invalid("not [salt, value] or [salt, name, value]")),
         };
         if name.is_some_and(|n| n == "_sd" || n == "...") {
-            return Err("reserved claim name");
+            return Err(invalid("reserved claim name"));
         }
         Ok(Self {
             encoded: encoded.to_owned(),
@@ -61,10 +64,10 @@ impl Disclosure {
 }
 
 /// 128 random bits, base64url-encoded.
-pub fn random_salt() -> String {
+pub fn random_salt() -> Result<String, Error> {
     let mut bytes = [0u8; 16];
-    getrandom::fill(&mut bytes).expect("OS random number generator failed");
-    URL_SAFE_NO_PAD.encode(bytes)
+    getrandom::fill(&mut bytes).map_err(|_| Error::SigningFailed("no system randomness".into()))?;
+    Ok(URL_SAFE_NO_PAD.encode(bytes))
 }
 
 #[cfg(test)]
@@ -100,9 +103,10 @@ mod tests {
 
     #[test]
     fn round_trip() {
-        let d = Disclosure::new(&random_salt(), Some("age_over_18"), json!(true));
+        let salt = random_salt().unwrap();
+        let d = Disclosure::new(&salt, Some("age_over_18"), json!(true));
         assert_eq!(Disclosure::parse(&d.encoded).unwrap(), d);
-        let d = Disclosure::new(&random_salt(), None, json!("DE"));
+        let d = Disclosure::new(&salt, None, json!("DE"));
         assert_eq!(Disclosure::parse(&d.encoded).unwrap(), d);
     }
 
