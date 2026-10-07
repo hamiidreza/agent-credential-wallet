@@ -130,6 +130,7 @@ fn holder_key(claims: &Claims) -> Result<MlDsaVerifyingKey, Error> {
     MlDsaVerifyingKey::from_jwk(jwk)
 }
 
+/// The issuer's signature and `typ`, then the Disclosures.
 fn verify_issued(
     jwt: &str,
     disclosures: Vec<Disclosure>,
