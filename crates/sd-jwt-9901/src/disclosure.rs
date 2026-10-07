@@ -80,18 +80,24 @@ pub fn random_salt() -> Result<String, Error> {
 mod tests {
     use super::*;
 
-    // Examples from RFC 9901.
-    const MOBIUS: &str = "WyI2cU1RdlJMNWhhaiIsICJmYW1pbHlfbmFtZSIsICJNw7ZiaXVzIl0";
-    const MOBIUS_ESCAPED: &str = "WyI2cU1RdlJMNWhhaiIsICJmYW1pbHlfbmFtZSIsICJNXHUwMGY2Yml1cyJd";
+    // RFC 9901, Sections 4.2.1 and 4.2.3.
+    const MOBIUS: &str = "WyJfMjZiYzRMVC1hYzZxMktJNmNCVzVlcyIsICJmYW1pbHlfbmFtZSIsICJNw7ZiaXVzIl0";
+    // The same claim, encoded the three other ways Section 4.2.1 shows.
+    const MOBIUS_VARIANTS: [&str; 3] = [
+        "WyJfMjZiYzRMVC1hYzZxMktJNmNCVzVlcyIsICJmYW1pbHlfbmFtZSIsICJNXHUwMGY2Yml1cyJd",
+        "WyJfMjZiYzRMVC1hYzZxMktJNmNCVzVlcyIsImZhbWlseV9uYW1lIiwiTcO2Yml1cyJd",
+        "WwoiXzI2YmM0TFQtYWM2cTJLSTZjQlc1ZXMiLAoiZmFtaWx5X25hbWUiLAoiTcO2Yml1cyIKXQ",
+    ];
+    // RFC 9901, Sections 4.2.2 and 4.2.4.2.
     const FR: &str = "WyJsa2x4RjVqTVlsR1RQVW92TU5JdkNBIiwgIkZSIl0";
 
     #[test]
     fn rfc_examples() {
         let d = Disclosure::parse(MOBIUS).unwrap();
-        assert_eq!(d.salt, "6qMQvRL5haj");
+        assert_eq!(d.salt, "_26bc4LT-ac6q2KI6cBW5es");
         assert_eq!(d.name.as_deref(), Some("family_name"));
         assert_eq!(d.value, json!("Möbius"));
-        assert_eq!(d.digest(), "uutlBuYeMDyjLLTpf6Jxi7yNkEF35jdyWMn9U7b_RYY");
+        assert_eq!(d.digest(), "X9yH0Ajrdm1Oij4tWso9UzzKJvPoDxwmuEcO3XAdRC0");
 
         let d = Disclosure::parse(FR).unwrap();
         assert_eq!(d.name, None);
@@ -101,10 +107,12 @@ mod tests {
 
     #[test]
     fn same_json_different_encoding_different_digest() {
-        let a = Disclosure::parse(MOBIUS).unwrap();
-        let b = Disclosure::parse(MOBIUS_ESCAPED).unwrap();
-        assert_eq!(a.value, b.value);
-        assert_ne!(a.digest(), b.digest());
+        let original = Disclosure::parse(MOBIUS).unwrap();
+        for encoded in MOBIUS_VARIANTS {
+            let variant = Disclosure::parse(encoded).unwrap();
+            assert_eq!(variant.value, original.value);
+            assert_ne!(variant.digest(), original.digest());
+        }
     }
 
     #[test]
