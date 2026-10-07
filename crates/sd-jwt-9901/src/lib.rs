@@ -8,5 +8,6 @@
 pub mod disclosure;
 pub mod error;
 pub mod jws;
+pub mod kb_jwt;
 pub mod mldsa;
 pub mod sd_jwt;

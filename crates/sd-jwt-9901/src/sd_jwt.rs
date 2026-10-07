@@ -13,6 +13,8 @@ use serde_json::{Map, Value};
 use crate::disclosure::{Disclosure, random_salt};
 use crate::error::Error;
 use crate::jws::{self, Signer, Verifier};
+use crate::kb_jwt;
+use crate::mldsa::MlDsaVerifyingKey;
 
 pub type Claims = Map<String, Value>;
 
@@ -63,16 +65,11 @@ impl SdJwt {
     pub fn verify(presentation: &str, typ: &str, issuer: &dyn Verifier) -> Result<Claims, Error> {
         let sd_jwt = Self::parse(presentation)?;
         if sd_jwt.kb_jwt.is_some() {
-            return Err(Error::InvalidSdJwt("key binding not implemented yet"));
+            return Err(Error::InvalidKeyBinding(
+                "unexpected; use verify_presentation",
+            ));
         }
-        let verified = jws::verify(&sd_jwt.jwt, issuer)?;
-        if verified.header().get("typ").and_then(Value::as_str) != Some(typ) {
-            return Err(Error::InvalidSdJwt("unexpected typ"));
-        }
-        let Ok(Value::Object(payload)) = serde_json::from_slice(verified.payload()) else {
-            return Err(Error::InvalidSdJwt("payload is not a JSON object"));
-        };
-        disclose(payload, sd_jwt.disclosures)
+        verify_issued(&sd_jwt.jwt, sd_jwt.disclosures, typ, issuer)
     }
 
     pub fn parse(s: &str) -> Result<Self, Error> {
@@ -90,6 +87,63 @@ impl SdJwt {
             kb_jwt: (!kb_jwt.is_empty()).then(|| kb_jwt.to_owned()),
         })
     }
+
+    /// The holder's side: adds a Key Binding JWT for one verifier (`aud`) and
+    /// one request (`nonce`), signed with the key the issuer put in `cnf`.
+    pub fn bind(mut self, aud: &str, nonce: &str, holder: &dyn Signer) -> Result<Self, Error> {
+        self.kb_jwt = None;
+        let kb_jwt = kb_jwt::sign(&self.to_string(), aud, nonce, kb_jwt::now(), holder)?;
+        self.kb_jwt = Some(kb_jwt);
+        Ok(self)
+    }
+
+    /// The verifier's side: everything [`SdJwt::verify`] checks, plus a Key
+    /// Binding JWT signed with the key in `cnf`, for this `aud` and this `nonce`.
+    pub fn verify_presentation(
+        presentation: &str,
+        typ: &str,
+        issuer: &dyn Verifier,
+        aud: &str,
+        nonce: &str,
+    ) -> Result<Claims, Error> {
+        let sd_jwt = Self::parse(presentation)?;
+        let Some(kb) = sd_jwt.kb_jwt.as_deref() else {
+            return Err(Error::InvalidKeyBinding("missing"));
+        };
+        // The holder's key comes from the issuer-signed payload, so check that first.
+        let claims = verify_issued(&sd_jwt.jwt, sd_jwt.disclosures, typ, issuer)?;
+        let holder = holder_key(&claims)?;
+        // `sd_hash` covers the presentation exactly as received, up to its last `~`.
+        let bound = &presentation[..presentation.len() - kb.len()];
+        kb_jwt::verify(kb, bound, aud, nonce, kb_jwt::now(), &holder)?;
+        Ok(claims)
+    }
+}
+
+/// The holder's public key, from `cnf.jwk` in the issuer-signed claims.
+fn holder_key(claims: &Claims) -> Result<MlDsaVerifyingKey, Error> {
+    let jwk = claims
+        .get("cnf")
+        .and_then(|cnf| cnf.get("jwk"))
+        .and_then(Value::as_object)
+        .ok_or(Error::InvalidKeyBinding("credential has no cnf.jwk"))?;
+    MlDsaVerifyingKey::from_jwk(jwk)
+}
+
+fn verify_issued(
+    jwt: &str,
+    disclosures: Vec<Disclosure>,
+    typ: &str,
+    issuer: &dyn Verifier,
+) -> Result<Claims, Error> {
+    let verified = jws::verify(jwt, issuer)?;
+    if verified.header().get("typ").and_then(Value::as_str) != Some(typ) {
+        return Err(Error::InvalidSdJwt("unexpected typ"));
+    }
+    let Ok(Value::Object(payload)) = serde_json::from_slice(verified.payload()) else {
+        return Err(Error::InvalidSdJwt("payload is not a JSON object"));
+    };
+    disclose(payload, disclosures)
 }
 
 impl fmt::Display for SdJwt {
@@ -351,7 +405,7 @@ mod tests {
         assert_eq!(invalid(result), "the same Disclosure was sent twice");
 
         let result = SdJwt::verify(&format!("{sd_jwt}kb.jwt.here"), TYP, &key);
-        assert_eq!(invalid(result), "key binding not implemented yet");
+        assert!(matches!(result, Err(Error::InvalidKeyBinding(_))));    
     }
 
     // The rest test the processing rules alone, so they call `disclose` on
