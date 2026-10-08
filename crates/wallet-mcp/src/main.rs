@@ -54,14 +54,20 @@ fn keygen(dir: &Path) -> Result<(), Box<dyn Error>> {
 
 /// Loads `sk_S`, the trusted issuer's key and the credential, and checks them.
 fn open(dir: &Path) -> Result<AgentWallet, Box<dyn Error>> {
-    let seed: [u8; SEED_LEN] = fs::read(dir.join("sk_s.seed"))?
+    let seed: [u8; SEED_LEN] = read(dir, "sk_s.seed")?
         .try_into()
         .map_err(|_| "sk_s.seed is not 32 bytes")?;
     let key = MlDsaSigningKey::from_seed(Algorithm::MlDsa44, &seed);
-    let issuer = serde_json::from_str(&fs::read_to_string(dir.join("issuer.jwk"))?)?;
+    let issuer = serde_json::from_slice(&read(dir, "issuer.jwk")?)?;
     let issuer = MlDsaVerifyingKey::from_jwk(&issuer)?;
-    let credential = fs::read_to_string(dir.join("credential.sd-jwt"))?;
+    let credential = String::from_utf8(read(dir, "credential.sd-jwt")?)?;
     Ok(AgentWallet::load(credential.trim(), &issuer, key)?)
+}
+
+/// Reads a file from the wallet directory, naming the file if that fails.
+fn read(dir: &Path, name: &str) -> Result<Vec<u8>, String> {
+    let path = dir.join(name);
+    fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
 #[tokio::main]
