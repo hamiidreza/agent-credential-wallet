@@ -1,0 +1,13 @@
+[package]
+name = "mock-issuer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Mints a demo ID credential for an agent wallet"
+
+[dependencies]
+sd-jwt-9901 = { path = "../sd-jwt-9901" }
+serde_json  = { workspace = true }
+
+[lints]
+workspace = true
