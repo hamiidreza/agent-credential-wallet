@@ -1,5 +1,6 @@
 # Build output.
 /target/
+/demo/
 
 # Editor and OS noise.
 *.swp
