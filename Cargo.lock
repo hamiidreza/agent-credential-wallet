@@ -3,6 +3,17 @@
 version = 4
 
 [[package]]
+name = "agent-wallet"
+version = "0.1.0"
+dependencies = [
+ "schemars",
+ "sd-jwt-9901",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "android_system_properties"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -417,6 +428,14 @@ dependencies = [
  "shake",
  "signature",
  "zeroize",
+]
+
+[[package]]
+name = "mock-issuer"
+version = "0.1.0"
+dependencies = [
+ "sd-jwt-9901",
+ "serde_json",
 ]
 
 [[package]]
@@ -855,9 +874,11 @@ dependencies = [
 name = "wallet-mcp"
 version = "0.1.0"
 dependencies = [
+ "agent-wallet",
+ "getrandom",
  "rmcp",
- "schemars",
- "serde",
+ "sd-jwt-9901",
+ "serde_json",
  "tokio",
 ]
 

@@ -1,0 +1,16 @@
+[package]
+name = "agent-wallet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Holds a credential and the key sk_S, and builds presentations for the agent"
+
+[dependencies]
+sd-jwt-9901 = { path = "../sd-jwt-9901" }
+schemars    = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+thiserror   = { workspace = true }
+
+[lints]
+workspace = true
