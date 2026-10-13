@@ -68,7 +68,9 @@ async fn complete(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let path = std::env::args().nth(1).ok_or("usage: wine-shop <issuer.jwk>")?;
+    let path = std::env::args()
+        .nth(1)
+        .ok_or("usage: wine-shop <issuer.jwk>")?;
     let issuer = serde_json::from_str(&std::fs::read_to_string(path)?)?;
     let shop = Shop {
         issuer: MlDsaVerifyingKey::from_jwk(&issuer)?,
