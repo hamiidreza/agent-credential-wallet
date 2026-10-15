@@ -97,3 +97,105 @@ impl Policy {
         &self.grants
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::{Value, json};
+
+    const SHOP: &str = "https://wine-shop.example";
+    const PHARMACY: &str = "https://pharmacy.example";
+    const NOW: u64 = 1_800_000_000;
+
+    fn policy() -> Policy {
+        Policy::from_json(
+            &json!({"delegate_payload": [
+                {"aud": SHOP, "allowed_claims": ["age_over_18"], "exp": NOW + 3600},
+                {"aud": PHARMACY, "allowed_claims": ["age_over_18", "birthdate"], "exp": NOW - 1},
+            ]})
+            .to_string(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn rejects_malformed_files() {
+        // One valid grant, with `changes` applied; a null value removes the field.
+        let grant = |changes: Value| {
+            let mut grant = json!({"aud": SHOP, "allowed_claims": ["age_over_18"], "exp": NOW});
+            for (k, v) in changes.as_object().unwrap() {
+                if v.is_null() {
+                    grant.as_object_mut().unwrap().remove(k);
+                } else {
+                    grant[k] = v.clone();
+                }
+            }
+            json!({"delegate_payload": [grant]}).to_string()
+        };
+        for (case, file) in [
+            ("not JSON", "delegate_payload".to_owned()),
+            ("no delegate_payload", json!({}).to_string()),
+            ("unknown top-level field", {
+                let mut v: Value = serde_json::from_str(&grant(json!({}))).unwrap();
+                v["default"] = json!("allow");
+                v.to_string()
+            }),
+            ("missing exp", grant(json!({"exp": null}))),
+            ("missing aud", grant(json!({"aud": null}))),
+            ("exp as a date string", grant(json!({"exp": "2028-01-01"}))),
+            ("negative exp", grant(json!({"exp": -1}))),
+            ("fractional exp", grant(json!({"exp": 1.5}))),
+            ("aud as an array", grant(json!({"aud": [SHOP]}))),
+            (
+                "claims as a string",
+                grant(json!({"allowed_claims": "age_over_18"})),
+            ),
+            (
+                "misspelt field",
+                grant(json!({"allowed_claim": ["birthdate"]})),
+            ),
+            ("unsupported rule", grant(json!({"nbf": NOW}))),
+        ] {
+            assert!(
+                matches!(Policy::from_json(&file), Err(PolicyError::Malformed(_))),
+                "{case}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_policies_that_are_almost_certainly_mistakes() {
+        let shop = json!({"aud": SHOP, "allowed_claims": ["age_over_18"], "exp": NOW});
+        for (grants, reason) in [
+            (json!([]), "delegate_payload is empty"),
+            (json!([shop, shop]), "two entries have the same aud"),
+            (
+                json!([{"aud": "", "allowed_claims": ["age_over_18"], "exp": NOW}]),
+                "an entry has an empty aud",
+            ),
+            (
+                json!([{"aud": SHOP, "allowed_claims": [], "exp": NOW}]),
+                "an entry allows no claims",
+            ),
+        ] {
+            let file = json!({ "delegate_payload": grants }).to_string();
+            match Policy::from_json(&file) {
+                Err(PolicyError::Invalid(got)) => assert_eq!(got, reason),
+                other => panic!("expected {reason:?}, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn grants_round_trip_as_delegate_payload_elements() {
+        // Section F signs these same objects, with `cnf` added, into the sub-credential.
+        let policy = policy();
+        let json = serde_json::to_value(policy.grants()).unwrap();
+        assert_eq!(
+            json[0],
+            json!({"aud": SHOP, "allowed_claims": ["age_over_18"], "exp": NOW + 3600})
+        );
+        let file = json!({ "delegate_payload": json }).to_string();
+        assert_eq!(Policy::from_json(&file).unwrap(), policy);
+    }
+}
