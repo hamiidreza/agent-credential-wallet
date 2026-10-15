@@ -16,6 +16,10 @@
 //! }
 //! ```
 //!
+//! Every rule is one a verifier can check from a single presentation, so the
+//! same [`Policy::check`] runs in the agent wallet before it signs and, once
+//! the policy travels inside the signed sub-credential, in the verifier after.
+//!
 //! Until section F signs it into a sub-credential, the policy is a local file,
 //! and only as trustworthy as the file permissions that keep the agent from
 //! rewriting it.
@@ -33,7 +37,8 @@ pub struct Grant {
     pub aud: String,
     /// Names of the claims this verifier may be shown.
     pub allowed_claims: Vec<String>,
-    /// When the grant expires, in seconds since the Unix epoch.
+    /// When the grant expires, in seconds since the Unix epoch. A request at
+    /// or after this time is refused, as RFC 7519 treats `exp`.
     pub exp: u64,
 }
 
@@ -61,6 +66,19 @@ pub enum PolicyError {
     /// Well-formed, but breaks one of the rules in [`Policy::new`].
     #[error("invalid policy: {0}")]
     Invalid(&'static str),
+}
+
+/// Why a request falls outside the policy.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum Refusal {
+    #[error("the user's policy does not allow presentation to {0:?}")]
+    UnknownAudience(String),
+
+    #[error("the user's permission to present to {0:?} has expired")]
+    Expired(String),
+
+    #[error("the user's policy does not allow showing {claim:?} to {aud:?}")]
+    ClaimNotAllowed { claim: String, aud: String },
 }
 
 impl Policy {
@@ -96,6 +114,26 @@ impl Policy {
     pub fn grants(&self) -> &[Grant] {
         &self.grants
     }
+
+     /// Whether the policy allows presenting `claim` to `aud` at time `now`
+    /// (seconds since the Unix epoch).
+    pub fn check(&self, claim: &str, aud: &str, now: u64) -> Result<(), Refusal> {
+        let grant = self
+            .grants
+            .iter()
+            .find(|g| g.aud == aud)
+            .ok_or_else(|| Refusal::UnknownAudience(aud.to_owned()))?;
+        if now >= grant.exp {
+            return Err(Refusal::Expired(aud.to_owned()));
+        }
+        if !grant.allowed_claims.iter().any(|c| c == claim) {
+            return Err(Refusal::ClaimNotAllowed {
+                claim: claim.to_owned(),
+                aud: aud.to_owned(),
+            });
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -107,6 +145,8 @@ mod tests {
     const PHARMACY: &str = "https://pharmacy.example";
     const NOW: u64 = 1_800_000_000;
 
+    /// The wine shop may see `age_over_18` for another hour. The pharmacy may
+    /// also see `birthdate`, but its grant has already expired.
     fn policy() -> Policy {
         Policy::from_json(
             &json!({"delegate_payload": [
@@ -163,6 +203,63 @@ mod tests {
         }
     }
 
+        #[test]
+    fn allows_a_listed_claim_to_its_audience() {
+        assert_eq!(policy().check("age_over_18", SHOP, NOW), Ok(()));
+    }
+
+    #[test]
+    fn denies_a_claim_outside_the_audience_allow_list() {
+        // Allowed to the pharmacy, which does not make it allowed to the shop.
+        assert_eq!(
+            policy().check("birthdate", SHOP, NOW),
+            Err(Refusal::ClaimNotAllowed {
+                claim: "birthdate".into(),
+                aud: SHOP.into()
+            })
+        );
+    }
+
+    #[test]
+    fn denies_an_unknown_audience() {
+        assert_eq!(
+            policy().check("age_over_18", "https://attacker.com", NOW),
+            Err(Refusal::UnknownAudience("https://attacker.com".into()))
+        );
+    }
+
+    #[test]
+    fn audiences_match_exactly() {
+        for near_miss in [
+            "https://wine-shop.example/",
+            "HTTPS://wine-shop.example",
+            "https://wine-shop.example.attacker.com",
+            "http://wine-shop.example",
+            "",
+        ] {
+            assert_eq!(
+                policy().check("age_over_18", near_miss, NOW),
+                Err(Refusal::UnknownAudience(near_miss.into())),
+                "{near_miss:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn denies_after_expiry_and_at_the_exact_second() {
+        let policy = policy();
+        let exp = NOW + 3600;
+        assert_eq!(policy.check("age_over_18", SHOP, exp - 1), Ok(()));
+        let expired = Err(Refusal::Expired(SHOP.into()));
+        assert_eq!(policy.check("age_over_18", SHOP, exp), expired);
+        assert_eq!(policy.check("age_over_18", SHOP, u64::MAX), expired);
+        // The pharmacy's grant expired on its own, without touching the shop's.
+        assert_eq!(
+            policy.check("birthdate", PHARMACY, NOW),
+            Err(Refusal::Expired(PHARMACY.into()))
+        );
+    }
+    
     #[test]
     fn rejects_policies_that_are_almost_certainly_mistakes() {
         let shop = json!({"aud": SHOP, "allowed_claims": ["age_over_18"], "exp": NOW});
