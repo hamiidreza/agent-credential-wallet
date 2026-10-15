@@ -115,7 +115,7 @@ impl Policy {
         &self.grants
     }
 
-     /// Whether the policy allows presenting `claim` to `aud` at time `now`
+    /// Whether the policy allows presenting `claim` to `aud` at time `now`
     /// (seconds since the Unix epoch).
     pub fn check(&self, claim: &str, aud: &str, now: u64) -> Result<(), Refusal> {
         let grant = self
@@ -203,7 +203,7 @@ mod tests {
         }
     }
 
-        #[test]
+    #[test]
     fn allows_a_listed_claim_to_its_audience() {
         assert_eq!(policy().check("age_over_18", SHOP, NOW), Ok(()));
     }
@@ -259,7 +259,7 @@ mod tests {
             Err(Refusal::Expired(PHARMACY.into()))
         );
     }
-    
+
     #[test]
     fn rejects_policies_that_are_almost_certainly_mistakes() {
         let shop = json!({"aud": SHOP, "allowed_claims": ["age_over_18"], "exp": NOW});
