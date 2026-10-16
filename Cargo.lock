@@ -688,8 +688,10 @@ dependencies = [
 name = "mock-issuer"
 version = "0.1.0"
 dependencies = [
+ "getrandom",
  "sd-jwt-9901",
  "serde_json",
+ "user-wallet",
 ]
 
 [[package]]

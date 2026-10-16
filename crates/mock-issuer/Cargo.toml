@@ -3,10 +3,12 @@ name = "mock-issuer"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Mints a demo ID credential for an agent wallet"
+description = "Mints a demo ID credential, bound to a key the holder proves it has"
 
 [dependencies]
 sd-jwt-9901 = { path = "../sd-jwt-9901" }
+user-wallet = { path = "../user-wallet" }
+getrandom   = { workspace = true }
 serde_json  = { workspace = true }
 
 [lints]

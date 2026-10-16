@@ -12,6 +12,7 @@
 
 use std::error::Error;
 use std::fs;
+use std::io::{self, Write};
 use std::path::Path;
 use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -79,7 +80,9 @@ fn prove(dir: &Path, issuer: &str, nonce: &str) -> Result<(), Box<dyn Error>> {
     let passphrase = passphrase()?;
     let key = keystore::open(&file, passphrase.as_bytes())?;
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-    println!("{}", proof::sign(&key, issuer, nonce, now)?);
+    // `writeln!` rather than `println!`: if the reader is gone, that is an
+    // error to report, not a reason to panic.
+    writeln!(io::stdout(), "{}", proof::sign(&key, issuer, nonce, now)?)?;
     Ok(())
 }
 
