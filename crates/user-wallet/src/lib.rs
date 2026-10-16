@@ -5,3 +5,4 @@
 //! passphrase that protects it.
 
 pub mod keystore;
+pub mod proof;

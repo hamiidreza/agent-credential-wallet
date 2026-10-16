@@ -2,6 +2,8 @@
 //!
 //! - `user-wallet init <dir> [ML-DSA-44|ML-DSA-65]` creates `sk_U` and stores
 //!   it in `<dir>/sk_u.json`, encrypted under a passphrase.
+//! - `user-wallet prove <dir> <issuer> <nonce>` signs the issuer's nonce with
+//!   `sk_U` and prints the proof of possession, for a credential request.
 //!
 //! The passphrase is read from the terminal. For scripted demos it can come
 //! from the `USER_WALLET_PASSPHRASE` environment variable instead; other
@@ -11,16 +13,31 @@
 use std::error::Error;
 use std::fs;
 use std::path::Path;
+use std::process::ExitCode;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use sd_jwt_9901::jws::Algorithm;
 use sd_jwt_9901::mldsa::SEED_LEN;
 use user_wallet::keystore::{self, KdfParams};
+use user_wallet::proof;
 use zeroize::Zeroizing;
 
 const KEY_FILE: &str = "sk_u.json";
 const PASSPHRASE_VAR: &str = "USER_WALLET_PASSPHRASE";
 
-fn main() -> Result<(), Box<dyn Error>> {
+/// Prints errors with their messages rather than their debug form, so a
+/// wrong passphrase reads as one.
+fn main() -> ExitCode {
+    match run() {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
     match args.as_slice() {
@@ -30,7 +47,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Algorithm::from_name(alg).ok_or("unknown algorithm: use ML-DSA-44 or ML-DSA-65")?;
             init(Path::new(dir), alg)
         }
-        _ => Err("usage: user-wallet init <dir> [ML-DSA-44|ML-DSA-65]".into()),
+        ["prove", dir, issuer, nonce] => prove(Path::new(dir), issuer, nonce),
+        _ => Err(concat!(
+            "usage: user-wallet init <dir> [ML-DSA-44|ML-DSA-65]\n",
+            "       user-wallet prove <dir> <issuer> <nonce>"
+        )
+        .into()),
     }
 }
 
@@ -48,6 +70,28 @@ fn init(dir: &Path, alg: Algorithm) -> Result<(), Box<dyn Error>> {
     fs::write(&path, file)?;
     println!("created {} ({})", path.display(), alg.as_str());
     Ok(())
+}
+
+/// Unlocks `sk_U` and prints a proof of possession for `issuer` and `nonce`.
+fn prove(dir: &Path, issuer: &str, nonce: &str) -> Result<(), Box<dyn Error>> {
+    let path = dir.join(KEY_FILE);
+    let file = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let passphrase = passphrase()?;
+    let key = keystore::open(&file, passphrase.as_bytes())?;
+    let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+    println!("{}", proof::sign(&key, issuer, nonce, now)?);
+    Ok(())
+}
+
+/// The passphrase that unlocks `sk_U`: from the environment if set,
+/// otherwise asked for once.
+fn passphrase() -> Result<Zeroizing<String>, Box<dyn Error>> {
+    match std::env::var(PASSPHRASE_VAR) {
+        Ok(p) => Ok(Zeroizing::new(p)),
+        Err(_) => Ok(Zeroizing::new(rpassword::prompt_password(
+            "Passphrase for sk_U: ",
+        )?)),
+    }
 }
 
 /// A new passphrase: from the environment if set, otherwise asked for twice.
