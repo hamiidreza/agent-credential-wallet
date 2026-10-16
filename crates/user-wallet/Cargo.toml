@@ -1,0 +1,21 @@
+[package]
+name = "user-wallet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Stand-in for the user's phone wallet: holds sk_U and delegates to agent wallets"
+
+[dependencies]
+sd-jwt-9901      = { path = "../sd-jwt-9901" }
+argon2           = { workspace = true }
+base64           = { workspace = true }
+chacha20poly1305 = { workspace = true }
+getrandom        = { workspace = true }
+rpassword        = { workspace = true }
+serde            = { workspace = true }
+serde_json       = { workspace = true }
+thiserror        = { workspace = true }
+zeroize          = { workspace = true }
+
+[lints]
+workspace = true
