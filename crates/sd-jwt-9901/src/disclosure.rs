@@ -64,8 +64,9 @@ impl Disclosure {
 }
 
 /// SHA-256, base64url-encoded: the `_sd_alg` hash, used for Disclosure digests
-/// and for `sd_hash` in the Key Binding JWT.
-pub(crate) fn sha256_b64(input: &[u8]) -> String {
+/// and for `sd_hash` in the Key Binding JWT. Public for formats that extend
+/// SD-JWT with hashes of their own, such as `issuer_jwt_hash`.
+pub fn sha256_b64(input: &[u8]) -> String {
     URL_SAFE_NO_PAD.encode(Sha256::digest(input))
 }
 

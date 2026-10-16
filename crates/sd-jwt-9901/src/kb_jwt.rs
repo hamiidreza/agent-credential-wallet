@@ -4,6 +4,12 @@
 //! whose public half the issuer put in `cnf`. Its payload ties that signature
 //! to one verifier (`aud`), one request (`nonce`), one moment (`iat`), and the
 //! exact presentation it came with (`sd_hash`).
+//!
+//! [`SdJwt::bind`](crate::sd_jwt::SdJwt::bind) and
+//! [`SdJwt::verify_presentation`](crate::sd_jwt::SdJwt::verify_presentation)
+//! cover plain SD-JWTs. [`sign`] and [`verify`] are public for formats that
+//! extend SD-JWT and decide differently what `sd_hash` covers, such as a
+//! delegation chain.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -18,7 +24,7 @@ const TYP: &str = "kb+jwt";
 /// How far `iat` may be from the verifier's clock, either way, in seconds.
 const IAT_WINDOW: u64 = 300;
 
-/// Signs a KB-JWT over `bound`: the presentation up to and including its last `~`.
+/// Signs a KB-JWT over `bound`: for a plain SD-JWT, the presentation up to and including its last `~`.
 pub(crate) fn sign(
     bound: &str,
     aud: &str,
@@ -38,7 +44,8 @@ pub(crate) fn sign(
 }
 
 /// Checks a KB-JWT against the holder's key, and against the `bound`
-/// presentation, `aud` and `nonce` it must cover.
+/// presentation, `aud` and `nonce` it must cover at time `now` (seconds
+/// since the Unix epoch).
 pub(crate) fn verify(
     kb_jwt: &str,
     bound: &str,
@@ -184,6 +191,24 @@ mod tests {
         presentation.disclosures.pop();
         let result = shop_verifies(&p, &presentation.to_string(), SHOP);
         assert_eq!(reason(result), "sd_hash does not match the presentation");
+    }
+
+    #[test]
+    fn covers_exactly_the_bound_string() {
+        // What a format that extends SD-JWT relies on: whatever string it
+        // passes as `bound` is covered, byte for byte.
+        let holder = MlDsaSigningKey::generate(Algorithm::MlDsa44).unwrap();
+        let key = holder.verifying_key();
+        let bound = "any~string~the~caller~chooses~";
+        let kb = sign(bound, SHOP, NONCE, now(), &holder).unwrap();
+        assert!(verify(&kb, bound, SHOP, NONCE, now(), &key).is_ok());
+        let extended = format!("{bound}more~");
+        assert!(matches!(
+            verify(&kb, &extended, SHOP, NONCE, now(), &key),
+            Err(Error::InvalidKeyBinding(
+                "sd_hash does not match the presentation"
+            ))
+        ));
     }
 
     #[test]
