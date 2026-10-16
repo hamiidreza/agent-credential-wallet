@@ -1,0 +1,14 @@
+{
+  "delegate_payload": [
+    {
+      "aud": "https://wine-shop.example",
+      "allowed_claims": ["age_over_18"],
+      "exp": 1830297600
+    },
+    {
+      "aud": "https://pharmacy.example",
+      "allowed_claims": ["age_over_18", "birthdate"],
+      "exp": 1830297600
+    }
+  ]
+}

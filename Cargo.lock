@@ -6,6 +6,7 @@ version = 4
 name = "agent-wallet"
 version = "0.1.0"
 dependencies = [
+ "delegate-sd-jwt",
  "schemars",
  "sd-jwt-9901",
  "serde",
@@ -1155,6 +1156,7 @@ name = "wallet-mcp"
 version = "0.1.0"
 dependencies = [
  "agent-wallet",
+ "delegate-sd-jwt",
  "getrandom",
  "rmcp",
  "sd-jwt-9901",

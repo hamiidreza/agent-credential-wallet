@@ -2,12 +2,17 @@
 //!
 //! - `wallet-mcp keygen <dir>` creates `sk_S` and writes `pk_S` for the issuer.
 //! - `wallet-mcp serve <dir>` loads the wallet from `dir` and serves it on stdio.
+//!
+//! `serve` needs four files in `dir`: `sk_s.seed` from `keygen`, `issuer.jwk`
+//! and `credential.sd-jwt` from the issuer, and `policy.json` from the user
+//! (see `delegate_sd_jwt::policy`). Without a policy it does not start.
 
 use std::error::Error;
 use std::fs;
 use std::path::Path;
 
 use agent_wallet::{AgentWallet, CredentialInfo, PresentationRequest};
+use delegate_sd_jwt::policy::Policy;
 use rmcp::handler::server::wrapper::{Json, Parameters};
 use rmcp::transport::stdio;
 use rmcp::{ServiceExt, tool, tool_router};
@@ -22,7 +27,7 @@ struct Server {
 #[tool_router(server_handler)]
 impl Server {
     #[tool(
-        description = "Show the type of the credential this wallet holds and the names of the claims it can prove. Never shows claim values."
+        description = "Build a presentation that proves one claim to one verifier. Copy the claim, audience and nonce from the verifier's request unchanged, and send the result to that verifier. Requests outside the user's policy are refused."
     )]
     fn find_credential(&self) -> Json<CredentialInfo> {
         Json(self.wallet.find_credential())
@@ -52,7 +57,8 @@ fn keygen(dir: &Path) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// Loads `sk_S`, the trusted issuer's key and the credential, and checks them.
+/// Loads `sk_S`, the trusted issuer's key, the credential and the policy, and
+/// checks them.
 fn open(dir: &Path) -> Result<AgentWallet, Box<dyn Error>> {
     let seed: [u8; SEED_LEN] = read(dir, "sk_s.seed")?
         .try_into()
@@ -61,7 +67,8 @@ fn open(dir: &Path) -> Result<AgentWallet, Box<dyn Error>> {
     let issuer = serde_json::from_slice(&read(dir, "issuer.jwk")?)?;
     let issuer = MlDsaVerifyingKey::from_jwk(&issuer)?;
     let credential = String::from_utf8(read(dir, "credential.sd-jwt")?)?;
-    Ok(AgentWallet::load(credential.trim(), &issuer, key)?)
+    let policy = Policy::from_json(&String::from_utf8(read(dir, "policy.json")?)?)?;
+    Ok(AgentWallet::load(credential.trim(), &issuer, key, policy)?)
 }
 
 /// Reads a file from the wallet directory, naming the file if that fails.

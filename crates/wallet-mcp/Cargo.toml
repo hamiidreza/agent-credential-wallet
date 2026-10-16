@@ -6,12 +6,13 @@ license.workspace = true
 description = "The agent wallet as an MCP server"
 
 [dependencies]
-agent-wallet = { path = "../agent-wallet" }
-sd-jwt-9901  = { path = "../sd-jwt-9901" }
-getrandom    = { workspace = true }
-rmcp         = { workspace = true }
-serde_json   = { workspace = true }
-tokio        = { workspace = true }
+delegate-sd-jwt = { path = "../delegate-sd-jwt" }
+agent-wallet    = { path = "../agent-wallet" }
+sd-jwt-9901     = { path = "../sd-jwt-9901" }
+getrandom       = { workspace = true }
+rmcp            = { workspace = true }
+serde_json      = { workspace = true }
+tokio           = { workspace = true }
 
 [lints]
 workspace = true
