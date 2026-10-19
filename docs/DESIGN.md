@@ -105,6 +105,42 @@ claims that verifier's allow-list permits and the request asks for.
 Per-audience allow-lists depend on this. With `sd_hash`, the wine shop would
 see the pharmacy's claims too.
 
+### Where the draft leaves room
+
+The sub-credential is the draft's KB-SD-JWT+KB. Its top level holds the
+claims RFC 9901 requires of a KB-JWT (`iat`, `aud`, `nonce`), with
+`issuer_jwt_hash` in place of `sd_hash`, plus `_sd_alg` and
+`delegate_payload`. Each element of `delegate_payload` is one grant with
+`pk_S` added: `{"aud", "allowed_claims", "exp", "cnf"}`. Where the draft
+allows more than one choice, this profile picks one:
+
+- **Every element is a Disclosure**, even when there is only one. The draft
+  requires this only for two or more. One rule is simpler to check, and a
+  verifier then never sees a grant meant for someone else.
+- **Every element names the same `cnf`.** The draft would allow one
+  signature to delegate to several delegate holders. Here one sub-credential
+  delegates to one agent wallet.
+- **Unknown claims in an element are rejected.** An unknown claim may be a
+  constraint the verifier doesn't understand, and silently ignoring a
+  constraint is worse than refusing the presentation. This is the same
+  reasoning as rejecting `crit`.
+- **`sd_hash` is rejected** in the sub-credential. Only `issuer_jwt_hash` is
+  accepted, computed over the issuer-signed JWT alone, without its `~`.
+- **Top-level `aud` and `nonce` belong to the delegation itself**: `aud` names
+  the agent wallet that receives the sub-credential, and `nonce` is one that
+  wallet chose. Only the agent wallet can check them; a verifier ignores them.
+  This is distinct from the `aud` inside each grant, which names the
+  verifier.
+- **`iat` is not checked for freshness.** A sub-credential is meant to be used
+  for as long as its grants last, and each grant's `exp` bounds it.
+- **The placeholders in `delegate_payload` are sorted by digest.** Their order
+  then says nothing about the order of the grants. A verifier still sees how
+  many grants there are; decoy digests would hide that and are future work.
+- **`typ` is `kb+sd-jwt+kb`**, following the media type registration. The
+  spelling `kb-sd-jwt+kb` from the draft's Section 6 is rejected.
+- **One hop only.** A second empty component in the compact serialisation is
+  rejected.
+
 ### The final KB-JWT is where `sk_S` does its work
 
 The last component of the chain is an ordinary KB-JWT, signed by `sk_S`, freshly

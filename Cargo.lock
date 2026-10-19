@@ -298,6 +298,8 @@ dependencies = [
 name = "delegate-sd-jwt"
 version = "0.1.0"
 dependencies = [
+ "base64",
+ "sd-jwt-9901",
  "serde",
  "serde_json",
  "thiserror",

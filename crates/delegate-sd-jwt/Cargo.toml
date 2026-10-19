@@ -7,6 +7,8 @@ repository.workspace = true
 description = "Sub-credentials: an SD-JWT delegated to an agent wallet, under the user's policy"
 
 [dependencies]
+sd-jwt-9901 = { path = "../sd-jwt-9901" }
+base64     = { workspace = true }
 serde      = { workspace = true }
 serde_json = { workspace = true }
 thiserror  = { workspace = true }
